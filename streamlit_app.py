@@ -12,7 +12,8 @@ import sys
 load_dotenv()
 
 # Add src to python path to resolve internal imports in src module
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+# Add src to python path to resolve internal imports in src module
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 # Import core logic from src (now accessible directly)
 from ai_converter import AIConverter
@@ -69,7 +70,7 @@ if mode_key == "ai":
         )
 
         # Model Selection
-        model_options = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.0-flash"]
+        model_options = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"]
         
         # Determine default index
         default_model_index = 0
@@ -99,7 +100,7 @@ if mode_key == "ai":
     else:
         # Defaults
         api_key = os.getenv("GEMINI_API_KEY")
-        selected_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        selected_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
         system_prompt = ""
         
         # Display info about current defaults
