@@ -55,40 +55,58 @@ mode_key = "ai" if conversion_mode == "AI-Powered" else "traditional"
 # AI Configuration (Only show in AI Mode)
 if mode_key == "ai":
     st.sidebar.subheader("Cấu hình AI")
-    # API Key
-    api_key = st.sidebar.text_input(
-        "Gemini API Key",
-        type="password",
-        value=os.getenv("GEMINI_API_KEY", ""),
-        help="Nhập Google Gemini API Key của bạn. Nếu để trống sẽ thử dùng key từ Environment Variable."
-    )
+    
+    # Custom Configuration Toggle
+    use_custom_config = st.sidebar.checkbox("Custom Configuration", value=False, help="Bật để tự nhập API Key và chọn Model khác.")
+    
+    if use_custom_config:
+        # API Key
+        api_key = st.sidebar.text_input(
+            "Gemini API Key",
+            type="password",
+            value="",
+            help="Nhập Google Gemini API Key của bạn."
+        )
 
-    # Model Selection
-    model_options = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"]
-    default_model_index = 0
-    env_model = os.getenv("GEMINI_MODEL")
-    if env_model in model_options:
-        default_model_index = model_options.index(env_model)
+        # Model Selection
+        model_options = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"]
         
-    selected_model = st.sidebar.selectbox(
-        "Chọn Model",
-        options=model_options,
-        index=default_model_index
-    )
+        # Determine default index
+        default_model_index = 0
+        env_model = os.getenv("GEMINI_MODEL")
+        if env_model in model_options:
+            default_model_index = model_options.index(env_model)
+            
+        selected_model = st.sidebar.selectbox(
+            "Chọn Model",
+            options=model_options,
+            index=default_model_index
+        )
 
-    # Custom Model Input
-    use_custom_model = st.sidebar.checkbox("Nhập tên model khác")
-    if use_custom_model:
-        selected_model = st.sidebar.text_input("Model Name", value=selected_model)
+        # Custom Model Input
+        use_custom_model_name = st.sidebar.checkbox("Nhập tên model khác")
+        if use_custom_model_name:
+            selected_model = st.sidebar.text_input("Model Name", value=selected_model)
 
-    # System Prompt
-    default_prompt = ""
-    system_prompt = st.sidebar.text_area(
-        "Custom System Prompt (Optional)",
-        value=default_prompt,
-        height=150,
-        help="Thêm hướng dẫn bổ sung cho AI."
-    )
+        # System Prompt
+        default_prompt = ""
+        system_prompt = st.sidebar.text_area(
+            "Custom System Prompt (Optional)",
+            value=default_prompt,
+            height=150,
+            help="Thêm hướng dẫn bổ sung cho AI."
+        )
+    else:
+        # Defaults
+        api_key = os.getenv("GEMINI_API_KEY")
+        selected_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+        system_prompt = ""
+        
+        # Display info about current defaults
+        st.sidebar.info(f"Using Default Model: {selected_model}")
+        if not api_key:
+             st.sidebar.warning("⚠️ Chưa cấu hình API Key mặc định (Environment Variable)!")
+
 else:
     # Traditional Mode Config (Visual placeholder if needed)
     st.sidebar.info("Chế độ Traditional sẽ chuyển đổi file dựa trên cấu trúc bảng có sẵn.")
@@ -104,8 +122,11 @@ if uploaded_files:
     st.write(f"Đã chọn {len(uploaded_files)} files.")
     
     if st.button("🚀 Bắt đầu chuyển đổi", type="primary"):
-        if mode_key == "ai" and not api_key and not os.getenv("GEMINI_API_KEY"):
-            st.error("⚠️ Vui lòng nhập API Key!")
+        # Validate API Key for AI Mode
+        final_api_key = api_key if (mode_key == "ai" and use_custom_config) else os.getenv("GEMINI_API_KEY")
+        
+        if mode_key == "ai" and not final_api_key:
+            st.error("⚠️ Vui lòng nhập API Key hoặc cấu hình Environment Variable!")
             st.stop()
             
         progress_bar = st.progress(0)
@@ -132,7 +153,7 @@ if uploaded_files:
             if mode_key == "ai":
                 # AI CONVERSION LOGIC
                 converter = AIConverter(
-                    api_key=api_key or os.getenv("GEMINI_API_KEY"),
+                    api_key=final_api_key,
                     provider="gemini",
                     model_name=selected_model,
                     system_prompt=system_prompt
