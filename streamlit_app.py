@@ -19,6 +19,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from ai_converter import AIConverter
 from converter import Converter as TraditionalConverter
 
+import google.generativeai as genai
+
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -42,6 +44,10 @@ st.markdown("Chuyển đổi file Excel và CSV sang Markdown.")
 
 # Sidebar Configuration
 st.sidebar.header("Cấu hình")
+
+# Debug Info
+st.sidebar.caption(f"SDK Version: {genai.__version__}")
+
 
 # Mode Selection
 conversion_mode = st.sidebar.radio(
