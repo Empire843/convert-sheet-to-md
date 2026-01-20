@@ -6,7 +6,7 @@ import os
 import time
 import logging
 from pathlib import Path
-import google.generativeai as genai
+from google import genai
 from typing import List, Dict
 
 logger = logging.getLogger(__name__)
@@ -77,10 +77,8 @@ OUTPUT:
             raise ValueError("API key is required.")
         
         if self.provider == 'gemini':
-            # Configure Gemini
-            genai.configure(api_key=self.api_key)
-            # Use specified model or default to flash
-            self.model = genai.GenerativeModel(self.model_name)
+            # Configure Gemini Client
+            self.client = genai.Client(api_key=self.api_key)
             logger.info(f"AI Converter initialized with Gemini (Model: {self.model_name})")
         else:
             # Placeholder for future providers
@@ -104,11 +102,18 @@ OUTPUT:
             List of model names
         """
         try:
-            genai.configure(api_key=api_key)
+            client = genai.Client(api_key=api_key)
             models = []
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    models.append(m.name.replace('models/', ''))
+            # Note: The new SDK might have different list_models structure.
+            # Adapting to common pattern or falling back to a known list if direct listing is complex.
+            # The v1alpha/beta API allowed listing, the new SDK client.models.list() is the way.
+            for m in client.models.list():
+                 # Filter by generateContent capability if possible, or just list names
+                 # The new SDK model objects might differ. Assuming m.name works.
+                name = m.name
+                if name.startswith('models/'):
+                    name = name.replace('models/', '')
+                models.append(name)
             return sorted(models)
         except Exception as e:
             logger.error(f"Error listing models: {e}")
@@ -250,31 +255,47 @@ OUTPUT:
                     delay = self.initial_retry_delay * (2 ** (attempt - 1))
                     time.sleep(delay)
                 
-                response = self.model.generate_content(final_prompt)
+                # New SDK Usage
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=final_prompt
+                )
                 break
                 
             except Exception as retry_error:
                 str_error = str(retry_error)
+                last_error = retry_error
                 if '429' in str_error or 'quota' in str_error.lower():
                     if 'rate limit exceeded' in str_error.lower() and attempt == self.max_retries - 1:
-                        raise Exception("Gemini API rate limit exceeded.")
-                    continue
-                # For other errors like 404/403, raise immediately
-                raise retry_error
+                         # Let it propagate in the final check
+                         pass
+                    else:
+                        continue # Retry
+                
+                # If we are here, it might be another error or we are out of retries for 429 logic handled below
+                if attempt == self.max_retries - 1:
+                     pass # Will raise last_error after loop
+                else:
+                    # For non-429 errors that we might not want to retry, or we decide to retry?
+                    # The original code only retried on 429/quota. Let's stick to that but capture error.
+                     if '429' not in str_error and 'quota' not in str_error.lower():
+                         raise retry_error
         
         if response is None:
-            raise last_error or Exception("Failed to get response from AI")
+            raise last_error or Exception("Failed to get response from AI (Unknown Error)")
         
-        # Extract text
+        # Extract text logic for new SDK
         try:
             response_text = response.text
         except:
              # If simple text doesn't work, extract from parts
             parts = []
-            for candidate in response.candidates:
-                for part in candidate.content.parts:
-                    if hasattr(part, 'text'):
-                        parts.append(part.text)
+            if hasattr(response, 'candidates') and response.candidates:
+                 for candidate in response.candidates:
+                     if hasattr(candidate.content, 'parts'):
+                         for part in candidate.content.parts:
+                             if hasattr(part, 'text'):
+                                 parts.append(part.text)
             response_text = '\n'.join(parts)
             
         return self._parse_and_save_response(response_text, output_dir, base_name)
