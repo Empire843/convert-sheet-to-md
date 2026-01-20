@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    container_name: excel2md-web
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./output:/app/output
+      - ./src:/app/src
+      - ./web:/app/web
+      # mount .env 
+      - ./.env:/app/.env
+    environment:
+      - PYTHONUNBUFFERED=1

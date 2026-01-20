@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel/CSV to Markdown Converter</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="title">📊 Excel/CSV to Markdown</h1>
+            <p class="subtitle">Chuyển đổi file Excel & CSV sang Markdown một cách dễ dàng</p>
+        </header>
+
+        <!-- Upload Section -->
+        <section class="upload-section">
+            <div id="dropZone" class="drop-zone">
+                <div class="drop-zone-content">
+                    <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <h3>Kéo thả file vào đây</h3>
+                    <p>hoặc</p>
+                    <label for="fileInput" class="file-button">
+                        <span>📁 Chọn file</span>
+                        <input type="file" id="fileInput" multiple accept=".xlsx,.xls,.csv" hidden>
+                    </label>
+                    <p class="file-hint">Hỗ trợ: .xlsx, .xls, .csv (tối đa 50MB)</p>
+                </div>
+            </div>
+
+            <!-- Uploaded Files List -->
+            <div id="uploadedFiles" class="uploaded-files" style="display: none;">
+                <h4>📎 File đã upload:</h4>
+                <ul id="uploadedFilesList"></ul>
+            </div>
+        </section>
+
+        <!-- Mode Selector -->
+        <section class="mode-selector">
+            <h4>🔧 Chế độ chuyển đổi:</h4>
+            <div class="mode-options">
+                <label class="mode-option">
+                    <input type="radio" name="conversionMode" value="traditional" checked>
+                    <span class="mode-label">
+                        <span class="mode-icon">⚡</span>
+                        <span class="mode-name">Traditional</span>
+                        <span class="mode-desc">Nhanh, sử dụng pandas</span>
+                    </span>
+                </label>
+                <label class="mode-option">
+                    <input type="radio" name="conversionMode" value="ai" id="aiModeRadio">
+                    <span class="mode-label">
+                        <span class="mode-icon">🤖</span>
+                        <span class="mode-name">AI-Powered</span>
+                        <span class="mode-desc">Sử dụng Gemini AI</span>
+                    </span>
+                </label>
+            </div>
+
+            <!-- AI Configuration Section (Hidden by default) -->
+            <div id="aiConfigSection" class="ai-config-section" style="display: none;">
+                <div class="config-toggle">
+                    <label class="switch">
+                        <input type="checkbox" id="customConfigToggle">
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="toggle-label">Sử dụng cấu hình tùy chỉnh (Custom Configuration)</span>
+                </div>
+
+                <div id="customConfigForm" class="custom-config-form" style="display: none;">
+                    <div class="form-group">
+                        <label for="aiProvider">AI Provider:</label>
+                        <select id="aiProvider" class="form-control">
+                            <option value="gemini">Google Gemini</option>
+                            <option value="openai">OpenAI (Coming Soon)</option>
+                            <option value="deepseek">DeepSeek (Coming Soon)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="apiKey">API Key:</label>
+                        <div class="input-with-icon">
+                            <input type="password" id="apiKey" class="form-control" placeholder="Nhập API Key...">
+                            <button type="button" id="toggleKeyBtn" class="icon-btn">👁️</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="modelName">Model Name:</label>
+                        <input type="text" id="modelName" class="form-control" placeholder="Ví dụ: gemini-2.5-flash">
+                        <small class="form-text text-muted">Mặc định: gemini-2.5-flash</small>
+                    </div>
+                </div>
+
+                <div class="form-group mt-3">
+                    <label for="systemPrompt">Additional System Prompt (Optional):</label>
+                    <textarea id="systemPrompt" class="form-control" rows="3"
+                        placeholder="Nhập hướng dẫn bổ sung cho AI (ví dụ: 'Dịch sang tiếng Việt', 'Chỉ lấy cột A và B')..."></textarea>
+                </div>
+            </div>
+        </section>
+
+        <!-- Control Panel -->
+        <section class="control-panel">
+            <button id="executeBtn" class="btn btn-primary" disabled>
+                <span class="btn-icon">🚀</span>
+                <span>Thực hiện chuyển đổi</span>
+            </button>
+            <button id="clearBtn" class="btn btn-secondary">
+                <span class="btn-icon">🗑️</span>
+                <span>Xóa tất cả</span>
+            </button>
+        </section>
+
+        <!-- Progress -->
+        <div id="progress" class="progress-container" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+            <p class="progress-text">Đang xử lý...</p>
+        </div>
+
+        <!-- Results Section -->
+        <section id="resultsSection" class="results-section" style="display: none;">
+            <div class="results-header">
+                <h3>✅ File đã chuyển đổi</h3>
+                <button id="downloadAllBtn" class="btn btn-success">
+                    <span class="btn-icon">📦</span>
+                    <span>Tải tất cả (ZIP)</span>
+                </button>
+            </div>
+            <div id="resultsList" class="results-list"></div>
+        </section>
+
+        <!-- Toast Notifications -->
+        <div id="toastContainer" class="toast-container"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+
+</html>
