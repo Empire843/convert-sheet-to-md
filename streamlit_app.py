@@ -6,13 +6,17 @@ from pathlib import Path
 from dotenv import load_dotenv
 import zipfile
 import io
+import sys
 
 # Load environment variables
 load_dotenv()
 
-# Import core logic from src
-from src.ai_converter import AIConverter
-from src.converter import Converter as TraditionalConverter
+# Add src to python path to resolve internal imports in src module
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+
+# Import core logic from src (now accessible directly)
+from ai_converter import AIConverter
+from converter import Converter as TraditionalConverter
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)
