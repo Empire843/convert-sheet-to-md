@@ -7,6 +7,7 @@ import time
 import logging
 from pathlib import Path
 from google import genai
+from google.genai import types
 from typing import List, Dict
 
 logger = logging.getLogger(__name__)
@@ -54,8 +55,22 @@ VALIDATION:
 - No content may disappear due to layout transformation.
 
 OUTPUT:
-- Valid JSON only.
-- Markdown must be easy to read by humans and AI.
+- Return a JSON object with a single key "files".
+- "files" should be a list of objects, each containing:
+  - "filename": The suggested filename (must end in .md).
+  - "content": The full markdown content.
+
+Example:
+{
+  "files": [
+    {
+      "filename": "sheet_name.md",
+      "content": "# Title\n\nContent..."
+    }
+  ]
+}
+
+- Valid JSON only. Do not include explanation text outside the JSON.
 """
     
     def __init__(self, api_key: str = None, provider: str = 'gemini', model_name: str = 'gemini-2.5-flash', system_prompt: str = ''):
@@ -255,10 +270,13 @@ OUTPUT:
                     delay = self.initial_retry_delay * (2 ** (attempt - 1))
                     time.sleep(delay)
                 
-                # New SDK Usage
+                # New SDK Usage with JSON Mode
                 response = self.client.models.generate_content(
                     model=self.model_name,
-                    contents=final_prompt
+                    contents=final_prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type='application/json'
+                    )
                 )
                 break
                 
@@ -319,22 +337,38 @@ OUTPUT:
             import json
             import re
             
-            # Extract JSON from response (might be wrapped in markdown code blocks)
-            json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(1)
-            else:
-                # Try to find JSON object directly
+            data = None
+            # 1. Try direct JSON parse (expected with response_mime_type='application/json')
+            try:
+                data = json.loads(response_text)
+            except json.JSONDecodeError:
+                pass
+            
+            if not data:
+                # 2. Extract JSON from markdown blocks (fallback)
+                json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(1)
+                    try:
+                        data = json.loads(json_str)
+                    except json.JSONDecodeError:
+                        pass
+
+            if not data:
+                # 3. Try partial JSON extraction
                 json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
                 if json_match:
                     json_str = json_match.group(0)
-                else:
-                    # Fallback: treat entire response as single markdown file
-                    return self._save_simple_markdown(response_text, output_dir, base_name)
+                    try:
+                        data = json.loads(json_str)
+                    except json.JSONDecodeError:
+                        pass
+
+            if not data:
+                # Fallback: treat entire response as single markdown file
+                return self._save_simple_markdown(response_text, output_dir, base_name)
             
-            data = json.loads(json_str)
-            
-            # Save markdown files
+            # Now process the data
             if 'files' in data:
                 # Ensure output directory exists
                 logger.info(f"Creating output directory: {output_dir}")
@@ -342,9 +376,12 @@ OUTPUT:
                 logger.info(f"Output directory created/verified: {output_dir}")
                 
                 for file_info in data['files']:
-                    filename = file_info['filename']
-                    content = file_info['content']
+                    filename = file_info.get('filename', 'output.md')
+                    content = file_info.get('content', '')
                     
+                    if not content:
+                         continue
+
                     logger.info(f"Processing file from AI response: {filename}")
                     
                     # Ensure .md extension
@@ -365,6 +402,10 @@ OUTPUT:
                     
                     created_files.append(file_path)
                     logger.info(f"Created file: {filename}")
+            else:
+                logger.warning(f"JSON parsed successfully but 'files' key missing. Keys found: {list(data.keys())}")
+                # Fallback: try to save the raw text or the JSON dump as markdown
+                return self._save_simple_markdown(response_text, output_dir, base_name)
             
             return created_files
             
