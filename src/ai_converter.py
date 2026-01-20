@@ -100,8 +100,8 @@ Example:
             logger.warning(f"Provider {self.provider} not fully supported yet, defaulting logic to Gemini structure if applicable")
         
         # Retry configuration
-        self.max_retries = 3
-        self.initial_retry_delay = 2  # seconds
+        self.max_retries = 5
+        self.initial_retry_delay = 5  # Increased initial delay
     
 
 
@@ -235,7 +235,7 @@ Example:
             })
 
         return created_files, errors
-
+    
     def _friendly_error_message(self, error_msg: str) -> str:
         """Map raw error messages to user-friendly strings"""
         if "API key not valid" in error_msg:
@@ -264,10 +264,16 @@ Example:
         response = None
         last_error = None
         
+        import re
+        import time 
+
         for attempt in range(self.max_retries):
             try:
+                # Delay handling
                 if attempt > 0:
+                    # Default exponential backoff
                     delay = self.initial_retry_delay * (2 ** (attempt - 1))
+                    logger.info(f"Retry attempt {attempt + 1}/{self.max_retries}. Default wait: {delay}s")
                     time.sleep(delay)
                 
                 # New SDK Usage with JSON Mode
@@ -283,19 +289,33 @@ Example:
             except Exception as retry_error:
                 str_error = str(retry_error)
                 last_error = retry_error
+                
                 if '429' in str_error or 'quota' in str_error.lower():
+                    # Smart Rate Limiting: Try to parse "Please retry in X s."
+                    # Pattern example: "Please retry in 24.77550335s." or "retry in 30s"
+                    wait_match = re.search(r'retry in (\d+(\.\d+)?)s', str_error)
+                    if wait_match:
+                        wait_time = float(wait_match.group(1))
+                        # Add small buffer
+                        final_wait = wait_time + 1.5
+                        logger.warning(f"Rate limited. API requested wait: {wait_time}s. Sleeping for {final_wait}s...")
+                        time.sleep(final_wait)
+                        # Don't increment exponential backoff for next loop if we sleep here? 
+                        # Actually the loop will continue and do attempt check.
+                        # We should make sure we don't double sleep. 
+                        # But simplest is just continue, the next loop start will add some exponential sleep too, which is safer.
+                        continue
+                    
                     if 'rate limit exceeded' in str_error.lower() and attempt == self.max_retries - 1:
-                         # Let it propagate in the final check
+                         # Let it propagate
                          pass
                     else:
                         continue # Retry
                 
-                # If we are here, it might be another error or we are out of retries for 429 logic handled below
+                # If we are here, it might be another error or we are out of retries
                 if attempt == self.max_retries - 1:
-                     pass # Will raise last_error after loop
+                     pass
                 else:
-                    # For non-429 errors that we might not want to retry, or we decide to retry?
-                    # The original code only retried on 429/quota. Let's stick to that but capture error.
                      if '429' not in str_error and 'quota' not in str_error.lower():
                          raise retry_error
         
