@@ -9,10 +9,10 @@ import argparse
 from pathlib import Path
 from typing import List
 
-from excel_processor import ExcelProcessor
-from csv_processor import CSVProcessor
-from markdown_generator import MarkdownGenerator
-from image_extractor import ImageExtractor
+from src.excel_processor import ExcelProcessor
+from src.csv_processor import CSVProcessor
+from src.markdown_generator import MarkdownGenerator
+from src.image_extractor import ImageExtractor
 
 # Cấu hình logging
 logging.basicConfig(

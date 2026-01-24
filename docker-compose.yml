@@ -1,15 +1,15 @@
 services:
-  web:
+  streamlit-app:
     build: .
-    container_name: excel2md-web
+    container_name: excel2md-streamlit
     ports:
-      - "5000:5000"
+      - "8501:8501"
+    env_file:
+      - .env
     volumes:
-      - ./uploads:/app/uploads
-      - ./output:/app/output
       - ./src:/app/src
-      - ./web:/app/web
-      # mount .env 
-      - ./.env:/app/.env
+      - ./streamlit_app.py:/app/streamlit_app.py
+      - ./output:/app/output
     environment:
       - PYTHONUNBUFFERED=1
+    restart: unless-stopped

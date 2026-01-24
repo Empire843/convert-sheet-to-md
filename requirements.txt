@@ -3,9 +3,7 @@ openpyxl
 xlrd
 Pillow
 chardet
-Flask
-Flask-CORS
 google-genai
 python-dotenv
-streamlit
+streamlit>=1.35.0
 watchdog
